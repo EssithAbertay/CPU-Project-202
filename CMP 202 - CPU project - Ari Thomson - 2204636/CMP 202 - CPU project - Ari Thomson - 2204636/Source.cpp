@@ -279,18 +279,16 @@ void setUpCells()
 	simulationActive = true;
 }
 
-
 int main()
 {
 	int steps;
 	std::cout << "Enter number of steps" << std::endl;
 	std::cin >> steps;
+
 	setUpCells();
 	displayGrid(false);
 
 	std::vector<std::thread> chunkThreads;
-
-
 
 	//uses 16 threads to make a 4*4 field, will change later to set it up so that it uses a varying number of threads based on cores
 	for (int y = 1; y < 12;y+=3)
@@ -319,8 +317,6 @@ int main()
 	{
 		chunkThreads[i].join();
 	}
-
-	
 
 	return 0;
 }
