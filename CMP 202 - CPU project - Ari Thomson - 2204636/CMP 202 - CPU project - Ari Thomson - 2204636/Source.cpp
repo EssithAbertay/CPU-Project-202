@@ -22,7 +22,7 @@ const char* ANSI_GREEN = "\033[42m";
 const char* ANSI_BLUE = "\033[44m";
 const char* ANSI_YELLOW = "\033[43m";
 
-bool cells[10][10]; //create a 10*10 grid but only use the inner 8*8, so that when parsing through data later issues don't arise, the outer layer should always be false/deaad
+bool cells[14][14]; //create a 10*10 grid but only use the inner 8*8, so that when parsing through data later issues don't arise, the outer layer should always be false/deaad
 
 int numOfThreads = std::thread::hardware_concurrency();
 
@@ -35,49 +35,79 @@ std::counting_semaphore displaySignaller{numOfThreads};
 
 std::atomic<bool> simulationActive;
 
-void setUpCells()
+void displayCells(bool includeCoords)
 {
-	simulationActive = true;
-
-	for (int i = 0; i < 10; i++)
-	{
-		for (int j = 0; j < 10; j++)
-		{
-			cells[i][j] = false;
-		}
-	}
-
-
-	//X and Y are swapped just now, idk why
-	cells[6][7] = true;
-	cells[7][6] = true;
-	cells[8][6] = true;
-	cells[7][7] = true;
-	cells[8][8] = true;
-}
-
-void displayCells()
-{
-	std::cout << std::endl;
+	bool toggle = true; //will clean up later, this is the best solution i can see just now
 	std::cout << "\x1B[2J\x1B[H";
-	for (int i = 1; i < 9; i++) //only display the inner area of the cell grid
-	{
-		for (int j = 1; j < 9; j++)
+	if(includeCoords)
+	{ 
+		std::cout << ANSI_RESET << "  1 2 3 4 5 6 7 8 9 101112" << std::endl;
+		for (int i = 1; i < 13; i++) //only display the inner area of the cell grid
 		{
-			if (cells[i][j])
+			for (int k = 0; k < 2; k++)
 			{
-				std::cout << ANSI_GREEN << "O";
-			}
-			else
-			{
-				std::cout << ANSI_RED << "X";
+				if (toggle)
+				{
+					if (i < 10)
+					{
+						std::cout << ANSI_RESET << i << " ";
+					}
+					else
+					{
+						std::cout << ANSI_RESET << i;
+					}
+					toggle = false;
+				}
+				else
+				{
+					std::cout << ANSI_RESET << "  ";
+					toggle = true;
+				}
+
+				for (int j = 1; j < 13; j++)
+				{
+
+					if (cells[i][j])
+					{
+						std::cout << ANSI_GREEN << "OO";
+					}
+					else
+					{
+						std::cout << ANSI_RED << "XX";
+					} 
+					
+				}
+				
+				std::cout << ANSI_RESET << std::endl;
 			}
 		}
-			std::cout << ANSI_RESET;
-		std::cout << std::endl;
+	
 	}
-	std::cout << ANSI_BLUE << "--------";
-	std::cout << ANSI_RESET << std::endl;
+	else
+	{
+		std::cout << std::endl;
+		for (int i = 1; i < 13; i++) //only display the inner area of the cell grid
+		{
+			for (int k = 0; k < 2; k++)
+			{
+				for (int j = 1; j < 13; j++)
+				{
+					if (cells[i][j])
+					{
+						std::cout << ANSI_GREEN << "OO";
+					}
+					else
+					{
+						std::cout << ANSI_RED << "XX";
+					}
+				}
+				std::cout << ANSI_RESET;
+				std::cout << std::endl;
+			}
+		}
+		//std::cout << ANSI_BLUE << "--------";
+		std::cout << ANSI_RESET << std::endl;
+	}
 }
 
 bool checkCell(int x, int y)
@@ -88,6 +118,18 @@ bool checkCell(int x, int y)
 void updateCell(bool update, int x, int y)
 {
 	cells[x][y] = update;
+}
+
+void toggleCell(int x, int y)
+{
+	if (cells[x][y])
+	{
+		cells[x][y] = false;
+	}
+	else
+	{
+		cells[x][y] = true;
+	}
 }
 
 
@@ -166,16 +208,15 @@ void displayText(std::string text)
 	textMutex.unlock();
 }
 
-
 void updateChunk(int startCellX, int startCellY) //start cell will be the cell in the top left of the chunk
 {
 	while (simulationActive)
 	{
-		bool chunk[2][2];
+		bool chunk[3][3];
 
-		for (int y = 0; y < 2; y++)
+		for (int y = 0; y < 3; y++)
 		{
-			for (int x = 0; x < 2; x++)
+			for (int x = 0; x < 3; x++)
 			{
 				chunk[x][y] = lifeCheck(startCellX + x, startCellY + y);
 			}
@@ -183,9 +224,9 @@ void updateChunk(int startCellX, int startCellY) //start cell will be the cell i
 
 		cellUpdateBarrier.arrive_and_wait();
 
-		for (int y = 0; y < 2; y++)
+		for (int y = 0; y < 3; y++)
 		{
-			for (int x = 0; x < 2; x++)
+			for (int x = 0; x < 3; x++)
 			{
 				updateCell(chunk[x][y], startCellX + x, startCellY + y);
 			}
@@ -195,40 +236,84 @@ void updateChunk(int startCellX, int startCellY) //start cell will be the cell i
 	}
 }
 
-void displayGrid()
+void displayGrid(bool includeCoords)
 {
 	gridMutex.lock();
-	displayCells();
+	displayCells(includeCoords);
 	gridMutex.unlock();
 }
 
+void setUpCells()
+{
+	bool setupComplete = false;
+	int chosenCell = 0;
+	int xC, yC;
+	for (int i = 0; i < 14; i++)
+	{
+		for (int j = 0; j < 14; j++)
+		{
+			cells[i][j] = false;
+		}
+	}
+
+	while (!setupComplete)
+	{	
+		displayText("Current state of cell grid");
+		displayGrid(true);
+		displayText("Toggle a cell (1), or continue (2)");
+		std::cin >> chosenCell;
+
+		if (chosenCell == 2)
+		{
+			setupComplete = true;
+		}
+		else
+		{
+			displayText("X:");
+			std::cin >> xC;
+			displayText("Y:");
+			std::cin >> yC;
+			toggleCell(yC, xC);
+		}
+	}
+	simulationActive = true;
+}
+
+
 int main()
 {
-	//int runs;
-	//std::cout << "Enter number of runs" << std::endl;
-	//std::cin >> runs;
+	int steps;
+	std::cout << "Enter number of steps" << std::endl;
+	std::cin >> steps;
 	setUpCells();
-	displayGrid();
+	displayGrid(false);
 
 	std::vector<std::thread> chunkThreads;
 
 
 
-	//uses 16 threads to make a 4*4 field, will change later to set it up so that it uses a varying number of cores
-	for (int y = 1; y < 8;y+=2)
+	//uses 16 threads to make a 4*4 field, will change later to set it up so that it uses a varying number of threads based on cores
+	for (int y = 1; y < 12;y+=3)
 	{
-		for (int x = 1; x< 8; x+=2)
+		for (int x = 1; x< 12; x+=3)
 		{
 			chunkThreads.push_back(std::thread(updateChunk, x, y));
 		}
 	}
 
-	std::thread displayThread([&]() {
+	std::thread displayThread([&steps]() {
 		while (simulationActive) {
-			displayGrid();
+			displayGrid(false);
 			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			steps--;
+			if (steps <= 0)
+			{
+				simulationActive = false;
+			}
 		}
 	});
+	
+	displayThread.join();
 
 	for (int i = 0; i < 16; i++)
 	{
