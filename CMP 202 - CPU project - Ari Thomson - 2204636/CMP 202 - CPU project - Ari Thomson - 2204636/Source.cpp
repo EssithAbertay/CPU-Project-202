@@ -24,12 +24,14 @@ const char* ANSI_YELLOW = "\033[43m";
 
 bool cells[14][14]; //create a 10*10 grid but only use the inner 8*8, so that when parsing through data later issues don't arise, the outer layer should always be false/deaad
 
-int numOfCores = std::thread::hardware_concurrency(); 
 
-int total_dead_cells = 0;
-int total_alive_cells = 0;
 
-std::barrier cellUpdateBarrier{16};
+
+std::atomic<int> total_dead_cells = 0;
+
+std::atomic<int> total_alive_cells = 0;
+
+//std::barrier cellUpdateBarrier{16};
 
 //std::barrier cellUpdateBarrierOne{16};
 //std::barrier cellUpdateBarrierTwo{8};
@@ -38,26 +40,10 @@ std::barrier cellUpdateBarrier{16};
 std::mutex textMutex;
 std::mutex gridMutex;
 std::mutex cellUpdateMtx;
-std::mutex aliveCellsMutex;
-std::mutex deadCellsMutex;
 
 std::condition_variable cv;
 
 std::atomic<bool> simulationActive;
-
-void incrementAliveCells()
-{
-	aliveCellsMutex.lock();
-	total_alive_cells++ ;
-	aliveCellsMutex.unlock();
-}
-
-void incrementDeadCells()
-{
-	deadCellsMutex.lock();
-	total_dead_cells++;
-	deadCellsMutex.unlock();
-}
 
 
 void displayCells(bool includeCoords)
@@ -233,140 +219,86 @@ void displayText(std::string text)
 	textMutex.unlock();
 }
 
-void updateChunk(int startCellX, int startCellY) //start cell will be the cell in the top left of the chunk
+void updateChunk(int startCellX, int startCellY, std::barrier<void(*)(void) noexcept>& cellUpdateBarrier, int chunk_size) //start cell will be the cell in the top left of the chunk
 {
-	bool chunk[3][3]; 
-	
-	while (simulationActive)
-	{
-		for (int y = 0; y < 3; y++)
-		{
-			for (int x = 0; x < 3; x++)
-			{
-				chunk[x][y] = lifeCheck(startCellX + x, startCellY + y);
-				
-				// update the total number of alive or dead cells throughout the simulation
-				if(chunk[x][y])
-				{
-					incrementAliveCells();
-				}
-				else
-				{
-					incrementDeadCells();
-				}
-			}
-		}
-	
-		cellUpdateBarrier.arrive_and_wait();
-	
-		for (int y = 0; y < 3; y++)
-		{
-			for (int x = 0; x < 3; x++)
-			{
-				updateCell(chunk[x][y], startCellX + x, startCellY + y);
-
-				
-			}
-		}
-		
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-	}
-
-	
-	//std::vector<bool> values;
-	////int x_size, y_size;
-	////switch (size_case)
-	////{
-	////case(1):
-	////	x_size = 3;
-	////	y_size = 3;
-	////	break;
-	////case(2):
-	////	x_size = 3;
-	////	y_size = 6;
-	////	break;
-	////case(3):
-	////	x_size = 6;
-	////	y_size = 6;
-	////	break;
-	////default:
-	////	break;
-	////}
-	//
-	////for (int y = 0; y < y_size; y++)
-	////{
-	////	for (int x = 0; x < x_size; x++)
-	////	{
-	////		values.push_back(false);
-	////	}
-	////}
+	//old method used to use an array this is outdated as arrays require constant values for their parameters
+	//bool chunk[3][3]; 
 	//
 	//while (simulationActive)
 	//{
-	//	int i = 0;
-	//	for (int y = 0; y < y_size; y++)
+	//	for (int y = 0; y < 3; y++)
 	//	{
-	//		for (int x = 0; x < x_size; x++)
+	//		for (int x = 0; x < 3; x++)
 	//		{
-	//			values[i] = lifeCheck(startCellX + x, startCellY + y);
-	//			i++;
+	//			chunk[x][y] = lifeCheck(startCellX + x, startCellY + y);
+	//			
+	//			// update the total number of alive or dead cells throughout the simulation
+	//			if(chunk[x][y])
+	//			{
+	//				total_alive_cells++;
+	//			}
+	//			else
+	//			{
+	//				total_dead_cells++;
+	//			}
+	//		}
+	//	}
+	//
+	//	cellUpdateBarrier.arrive_and_wait();
+	//
+	//	for (int y = 0; y < 3; y++)
+	//	{
+	//		for (int x = 0; x < 3; x++)
+	//		{
+	//			updateCell(chunk[x][y], startCellX + x, startCellY + y);
+	//
+	//			
 	//		}
 	//	}
 	//	
-	//	cellUpdateBarrier.arrive_and_wait();
+	//	std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	//
-	//	//switch (size_case) //this is a very stupid thing, but I'm tired and don't want to think about it anymore
-	//	//{
-	//	//case(1):
-	//	//	cellUpdateBarrierOne.arrive_and_wait();
-	//	//	break;
-	//	//case(2):
-	//	//	cellUpdateBarrierTwo.arrive_and_wait();
-	//	//	break;
-	//	//case(3):
-	//	//	cellUpdateBarrierThree.arrive_and_wait();
-	//	//	break;
-	//	//}
-	//
-	//	i = 0;
-	//
-	//	for (int y = 0; y < y_size; y++)
-	//	{
-	//		for (int x = 0; x < x_size; x++)
-	//		{
-	//			updateCell(values[i], startCellX + x, startCellY + y);
-	//			i++;
-	//		}
-	//	}
-	//
-		//std::vector<bool> values;
-	////int x_size, y_size;
-	////switch (size_case)
-	////{
-	////case(1):
-	////	x_size = 3;
-	////	y_size = 3;
-	////	break;
-	////case(2):
-	////	x_size = 3;
-	////	y_size = 6;
-	////	break;
-	////case(3):
-	////	x_size = 6;
-	////	y_size = 6;
-	////	break;
-	////default:
-	////	break;
-	////}
-//
-	////for (int y = 0; y < y_size; y++)
-	////{
-	////	for (int x = 0; x < x_size; x++)
-	////	{
-	////		values.push_back(false);
-	////	}
-	////}
+	//}
+
+	
+	std::vector<bool> values;
+	
+	for (int y = 0; y < chunk_size; y++)
+	{
+		for (int x = 0; x < chunk_size; x++)
+		{
+			values.push_back(false);
+		}
+	}
+	
+	while (simulationActive)
+	{
+		int i = 0;
+		for (int y = 0; y < chunk_size; y++)
+		{
+			for (int x = 0; x < chunk_size; x++)
+			{
+				values[i] = lifeCheck(startCellX + x, startCellY + y);
+				i++;
+			}
+		}
+
+		cellUpdateBarrier.arrive_and_wait();
+
+		i = 0;
+
+		for (int y = 0; y < chunk_size; y++)
+		{
+			for (int x = 0; x < chunk_size; x++)
+			{
+				updateCell(values[i], startCellX + x, startCellY + y);
+				i++;
+			}
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+	}
+
 
 }
 
@@ -550,6 +482,31 @@ void setUpCells()
 
 int main()
 {
+	//int numOfCores = std::thread::hardware_concurrency(); was planning originally to make the program decide how many threads to use, instead opted to have the user decide
+	int numOfThreads,chunkDimension;
+
+	std::cout << "How many threads would you like to run? (1/4/9/16/36)" << std::endl;
+	std::cin >> numOfThreads;
+
+	while (!(numOfThreads == 1) && !(numOfThreads == 4) && !(numOfThreads == 9) && !(numOfThreads == 16) && !(numOfThreads == 36))
+	{
+		std::cout << "Please enter a valid number of threads to run? (1/4/9/16/36)" << std::endl;
+		std::cin >> numOfThreads;
+	}
+
+
+	//find the size of each chunk based on how many are on the side
+	chunkDimension = 12 / sqrt(numOfThreads);
+
+
+	std::string input;
+	std::cout << "Would you like to have an output display? (say no to find timings) (Y/N)" << std::endl;
+	std::cin >> input;
+
+	std::barrier<void(*)(void) noexcept> cellUpdateBarrier(numOfThreads, []() noexcept { });
+
+	//std::barrier<> cellUpdateBarrier{ 16 };
+
 	int steps;
 
 	displayText("Enter number of steps");
@@ -598,28 +555,39 @@ int main()
 	//}
 
 
-	//16 threads for a 4*4 grid
-	for (int y = 1; y < 12; y+= 3)
+	if(numOfThreads == 1)
 	{
-		for (int x = 1; x < 12; x+= 3)
+		chunkThreads.push_back(std::thread(updateChunk, 1, 1, std::ref(cellUpdateBarrier), 12));
+	}
+	else
+	{
+		for (int y = 1; y < 12; y += chunkDimension)
 		{
-			chunkThreads.push_back(std::thread(updateChunk, x, y));
+			for (int x = 1; x < 12; x += chunkDimension)
+			{
+				chunkThreads.push_back(std::thread(updateChunk, x, y, std::ref(cellUpdateBarrier), chunkDimension));
+			}
 		}
 	}
 
-	std::thread displayThread([&steps]() {
-		while (simulationActive) {
-			displayGrid(false);
-			std::this_thread::sleep_for(std::chrono::milliseconds(500));
-			steps--;
-			if (steps <= 0)
-			{
-				simulationActive = false;
+
+	//only need to use the display thread if it has been requested
+	if (input == "Y")
+	{
+		std::thread displayThread([&steps]() {
+			while (simulationActive) {
+				displayGrid(false);
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+				steps--;
+				if (steps <= 0)
+				{
+					simulationActive = false;
+				}
 			}
-		}
-	});
-	
-	displayThread.join();
+			});
+
+		displayThread.join();
+	}
 
 	for (int i = 0; i < chunkThreads.size(); i++)
 	{
