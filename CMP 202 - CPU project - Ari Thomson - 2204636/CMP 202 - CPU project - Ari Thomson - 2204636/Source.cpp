@@ -309,35 +309,6 @@ void displayGrid(bool includeCoords)
 	gridMutex.unlock();
 }
 
-void updateBoard(int numOfSteps) //start cell will be the cell in the top left of the chunk not using threads
-{
-	bool chunk[12][12];
-	
-	for(int i = 0; i < numOfSteps; i++)
-	{
-		for (int y = 0; y < 12; y++)
-		{
-			for (int x = 0; x < 12; x++)
-			{
-				chunk[x][y] = lifeCheck(x,y);
-			}
-		}
-
-		for (int y = 0; y < 12; y++)
-		{
-			for (int x = 0; x < 12; x++)
-			{
-				updateCell(chunk[x][y],x,y);
-			}
-		}
-		displayGrid(false);
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-		
-	}
-
-}
-
 void setUpCells()
 {
 	bool setupComplete = false;
@@ -354,6 +325,12 @@ void setUpCells()
 
 	displayText("Use a preset cell combination (1) or create your own? (2)");
 	std::cin >> chosen;
+	while (!(chosen == 1) && !(chosen == 2))
+	{
+		std::cout << "Please enter a valid option, use a preset cell combination (1) or create your own (2)" << std::endl;
+		std::cin >> chosen;
+	}
+	
 
 	switch (chosen)
 		{
@@ -436,6 +413,12 @@ void setUpCells()
 				displayGrid(false);
 				displayText("Ready? (Y/N)");
 				std::cin >> inputString;
+				while (!(inputString == "Y") && !(inputString == "y") && !(inputString == "N") && !(inputString == "n"))
+				{
+					std::cout << "Please enter a valid response, ready? (Y/N)" << std::endl;
+					std::cin >> inputString;
+				}
+			
 				if (inputString == "Y" || inputString == "y")
 				{
 					setupComplete = true;
@@ -446,14 +429,33 @@ void setUpCells()
 			displayGrid(true);	
 			while (!setupComplete)
 			{					
-				displayText("X:");			
+				displayText("Toggle Cell\n X:");			
 				std::cin >> xC;
+
+				while (xC < 1 && xC > 12)
+				{
+					std::cout << "Please enter a valid x coordinate (between 1 and 12)" << std::endl;
+					std::cin >> xC;
+				}
+
 				displayText("Y:");
 				std::cin >> yC;
+
+				while (yC < 1 && yC > 12)
+				{
+					std::cout << "Please enter a valid y coordinate (between 1 and 12)" << std::endl;
+					std::cin >> xC;
+				}
+
 				toggleCell(yC, xC);
 				displayGrid(true);
 				displayText("Ready? (Y/N)");
 				std::cin >> inputString;
+				while (!(inputString == "Y") && !(inputString == "y") && !(inputString == "N") && !(inputString == "n"))
+				{
+					std::cout << "Please enter a valid response, ready? (Y/N)" << std::endl;
+					std::cin >> inputString;
+				}
 				if (inputString == "Y" || inputString == "y")
 				{
 					setupComplete = true;
@@ -488,9 +490,10 @@ int main()
 	std::cout << "How many threads would you like to run? (1/4/9/16/36)" << std::endl;
 	std::cin >> numOfThreads;
 
+	// input validation
 	while (!(numOfThreads == 1) && !(numOfThreads == 4) && !(numOfThreads == 9) && !(numOfThreads == 16) && !(numOfThreads == 36))
 	{
-		std::cout << "Please enter a valid number of threads to run? (1/4/9/16/36)" << std::endl;
+		std::cout << "Please enter a valid number of threads to run (1/4/9/16/36)" << std::endl;
 		std::cin >> numOfThreads;
 	}
 
@@ -502,6 +505,13 @@ int main()
 	std::string input;
 	std::cout << "Would you like to have an output display? (say no to find timings) (Y/N)" << std::endl;
 	std::cin >> input;
+
+	// input validation
+	while (!(input == "Y") && !(input == "y") && !(input == "N") && !(input == "n"))
+	{
+		std::cout << "Please enter a valid response (Y/N)" << std::endl;
+		std::cin >> input;
+	}
 
 	std::barrier<void(*)(void) noexcept> cellUpdateBarrier(numOfThreads, []() noexcept { });
 
@@ -596,10 +606,6 @@ int main()
 
 
 	std::cout << "Throughout the simulation " << MaxSteps << " steps were performed\nThere were a total of " << total_alive_cells << " alive cells, " << float(total_alive_cells / MaxSteps) << " on average per step\nThere were a total of " << total_dead_cells << " dead cells, " << float(total_dead_cells / MaxSteps) << " on average per step" << std::endl;
-
-
-	//setUpCells();
-	//updateBoard(alsoSteps);
 
 
 
