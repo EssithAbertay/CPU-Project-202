@@ -21,87 +21,110 @@ const char* ANSI_GREEN = "\033[42m";
 const char* ANSI_BLUE = "\033[44m";
 const char* ANSI_YELLOW = "\033[43m";
 
-bool cells[62][62]; //create a 10*10 grid but only use the inner 8*8, so that when parsing through data later issues don't arise, the outer layer should always be false/deaad
+const int sizeOfGrid = 12; //change this number to update grid size, must be multiple of 12
+
+bool tempCells[sizeOfGrid + 2][sizeOfGrid + 2];
+bool cells[sizeOfGrid + 2][sizeOfGrid + 2]; //create a 10*10 grid but only use the inner 8*8, so that when parsing through data later issues don't arise, the outer layer should always be false/deaad
+
+
 std::mutex textMutex;
 std::mutex gridMutex;
-//std::mutex cellUpdateMtx;
 
-int array_dimension = 60;
 
 std::atomic<bool> simulationActive;
 
 
 void displayCells(bool includeCoords)
 {
-	bool toggle = true; //will clean up later, this is the best solution i can see just now
+	//bool toggle = true; //will clean up later, this is the best solution i can see just now
 	std::cout << "\x1B[2J\x1B[H";
-	if(includeCoords)
-	{ 
-		std::cout << ANSI_RESET << "  1 2 3 4 5 6 7 8 9 101112" << std::endl;
-		for (int i = 1; i < array_dimension + 1; i++) //only display the inner area of the cell grid
-		{
-			for (int k = 0; k < 2; k++)
-			{
-				if (toggle)
-				{
-					if (i < 10)
-					{
-						std::cout << ANSI_RESET << i << " ";
-					}
-					else
-					{
-						std::cout << ANSI_RESET << i;
-					}
-					toggle = false;
-				}
-				else
-				{
-					std::cout << ANSI_RESET << "  ";
-					toggle = true;
-				}
+	//if(includeCoords)
+	//{ 
+	//	std::cout << ANSI_RESET << "  1 2 3 4 5 6 7 8 9 101112" << std::endl;
+	//	for (int i = 1; i < 13; i++) //only display the inner area of the cell grid
+	//	{
+	//		for (int k = 0; k < 2; k++)
+	//		{
+	//			if (toggle)
+	//			{
+	//				if (i < 10)
+	//				{
+	//					std::cout << ANSI_RESET << i << " ";
+	//				}
+	//				else
+	//				{
+	//					std::cout << ANSI_RESET << i;
+	//				}
+	//				toggle = false;
+	//			}
+	//			else
+	//			{
+	//				std::cout << ANSI_RESET << "  ";
+	//				toggle = true;
+	//			}
 
-				for (int j = 1; j < 13; j++)
-				{
+	//			for (int j = 1; j < 13; j++)
+	//			{
 
-					if (cells[i][j])
-					{
-						std::cout << ANSI_GREEN << "OO";
-					}
-					else
-					{
-						std::cout << ANSI_RED << "XX";
-					} 
-					
-				}
-				
-				std::cout << ANSI_RESET << std::endl;
-			}
-		}
-	
-	}
-	else
+	//				if (cells[i][j])
+	//				{
+	//					std::cout << ANSI_GREEN << "OO";
+	//				}
+	//				else
+	//				{
+	//					std::cout << ANSI_RED << "XX";
+	//				} 
+	//				
+	//			}
+	//			
+	//			std::cout << ANSI_RESET << std::endl;
+	//		}
+	//	}
+	//
+	//}
+	//else
+	//{
+	//	std::cout << std::endl;
+	//	for (int i = 1; i < 13; i++) //only display the inner area of the cell grid
+	//	{
+	//		for (int k = 0; k < 2; k++)
+	//		{
+	//			for (int j = 1; j < 13; j++)
+	//			{
+	//				if (cells[i][j])
+	//				{
+	//					std::cout << ANSI_GREEN << "OO";
+	//				}
+	//				else
+	//				{
+	//					std::cout << ANSI_RED << "XX";
+	//				}
+	//			}
+	//			std::cout << ANSI_RESET;
+	//			std::cout << std::endl;
+	//		}
+	//	}
+	//	//std::cout << ANSI_BLUE << "--------";
+	//	std::cout << ANSI_RESET << std::endl;
+	//}
+
+	//back to minimal grid display, cleaner but less intuitive
+	for (int i = 1; i < sizeOfGrid + 1; i++)
 	{
-		std::cout << std::endl;
-		for (int i = 1; i < array_dimension + 1; i++) //only display the inner area of the cell grid
+		for (int j = 1; j < sizeOfGrid + 1; j++)
 		{
-			for (int k = 0; k < 2; k++)
+
+			if (cells[i][j])
 			{
-				for (int j = 1; j < array_dimension + 1; j++)
-				{
-					if (cells[i][j])
-					{
-						std::cout << ANSI_GREEN << "OO";
-					}
-					else
-					{
-						std::cout << ANSI_RED << "XX";
-					}
-				}
-				std::cout << ANSI_RESET;
-				std::cout << std::endl;
+				std::cout << ANSI_GREEN << "O";
 			}
+			else
+			{
+				std::cout << ANSI_RED << "X";
+			}
+			 
+			
 		}
-		//std::cout << ANSI_BLUE << "--------";
 		std::cout << ANSI_RESET << std::endl;
 	}
 }
@@ -290,43 +313,74 @@ void updateChunk(int startCellX, int startCellY, std::barrier<void(*)(void) noex
 void updateChunk_NoDisplay(int startCellX, int startCellY, std::barrier<void(*)(void) noexcept>& cellUpdateBarrier, int chunk_size, int number_of_steps) //start cell will be the cell in the top left of the chunk
 {
 
-	std::vector<bool> values;
 
-	for (int y = 0; y < chunk_size; y++)
-	{
-		for (int x = 0; x < chunk_size; x++)
-		{
-			values.push_back(false);
-		}
-	}
+	//Variant one used in testing
+	//std::vector<bool> values;
+	//
+	//for (int y = 0; y < chunk_size; y++)
+	//{
+	//	for (int x = 0; x < chunk_size; x++)
+	//	{
+	//		values.push_back(false);
+	//	}
+	//}
+//
+	//for (int steps = 0; steps < number_of_steps; steps++)
+	//{
+	//	int i = 0;
+	//	for (int y = 0; y < chunk_size; y++)
+	//	{
+	//		for (int x = 0; x < chunk_size; x++)
+	//		{
+	//			values[i] = lifeCheck(startCellX + x, startCellY + y);
+	//			i++;
+	//		}
+	//	}
+//
+	//	cellUpdateBarrier.arrive_and_wait();
+	//
+	//	i = 0;
+	//
+	//	for (int y = 0; y < chunk_size; y++)
+	//	{
+	//		for (int x = 0; x < chunk_size; x++)
+	//		{
+	//			updateCell(values[i], startCellX + x, startCellY + y);
+	//			i++;
+	//		}
+	//	}
+	//
+	//}
 
+	//variant 2 used in testing
+	
 	for (int steps = 0; steps < number_of_steps; steps++)
 	{
-		int i = 0;
+		//int i = 0;
 		for (int y = 0; y < chunk_size; y++)
 		{
 			for (int x = 0; x < chunk_size; x++)
 			{
-				values[i] = lifeCheck(startCellX + x, startCellY + y);
-				i++;
+				tempCells[startCellX + x][startCellY + y] = lifeCheck(startCellX + x, startCellY + y);
+
+				//i++;
 			}
 		}
 
 		cellUpdateBarrier.arrive_and_wait();
 
-		i = 0;
+		//i = 0;
 
 		for (int y = 0; y < chunk_size; y++)
 		{
 			for (int x = 0; x < chunk_size; x++)
 			{
-				updateCell(values[i], startCellX + x, startCellY + y);
-				i++;
+				updateCell(tempCells[startCellX + x][startCellY + y], startCellX + x, startCellY + y);
+				//i++;
 			}
 		}
 
 	}
-	
 }
 
 void displayGrid(bool includeCoords)
@@ -342,9 +396,9 @@ void setUpCells()
 	int chosen = 0;
 	int xC, yC;
 	std::string inputString;
-	for (int i = 0; i < array_dimension + 2; i++)
+	for (int i = 0; i < sizeOfGrid + 2; i++)
 	{
-		for (int j = 0; j < array_dimension + 2; j++)
+		for (int j = 0; j < sizeOfGrid + 2; j++)
 		{
 			cells[i][j] = false;
 		}
@@ -437,7 +491,7 @@ void setUpCells()
 					break;
 				} //choose a preset
 
-				displayGrid(false);
+				//displayGrid(false);
 				displayText("Ready? (Y/N)");
 				std::cin >> inputString;
 				while (!(inputString == "Y") && !(inputString == "y") && !(inputString == "N") && !(inputString == "n"))
@@ -459,18 +513,18 @@ void setUpCells()
 				displayText("Toggle Cell\n X:");			
 				std::cin >> xC;
 
-				while (xC < 1 && xC > array_dimension)
+				while (xC < 1 && xC > sizeOfGrid)
 				{
-					std::cout << "Please enter a valid x coordinate (between 1 and " << array_dimension << " )" << std::endl;
+					std::cout << "Please enter a valid x coordinate (between 1 and " << sizeOfGrid << ")" << std::endl;
 					std::cin >> xC;
 				}
 
 				displayText("Y:");
 				std::cin >> yC;
 
-				while (yC < 1 && yC > array_dimension)
+				while (yC < 1 && yC > 12)
 				{
-					std::cout << "Please enter a valid y coordinate (between 1 and " << array_dimension << " )" << std::endl;
+					std::cout << "Please enter a valid y coordinate (between 1 and " << sizeOfGrid << ")" << std::endl;
 					std::cin >> xC;
 				}
 
@@ -496,7 +550,6 @@ void setUpCells()
 
 int main()
 {
-	int array_dimension = 60;
 
 
 	//int numOfCores = std::thread::hardware_concurrency(); was planning originally to make the program decide how many threads to use, instead opted to have the user decide
@@ -514,7 +567,7 @@ int main()
 
 
 	//find the size of each chunk based on how many are on the side
-	chunkDimension = 60 / sqrt(numOfThreads);
+	chunkDimension = sizeOfGrid / sqrt(numOfThreads);
 
 
 	std::string input;
@@ -580,6 +633,9 @@ int main()
 	//	}
 	//}
 
+	typedef std::chrono::steady_clock the_clock;
+	the_clock::time_point startTime;
+
 	if(input == "y" || input == "Y")
 	{ 
 		if(numOfThreads == 1)
@@ -588,9 +644,9 @@ int main()
 		}
 		else
 		{
-		for (int y = 1; y < array_dimension; y += chunkDimension)
+		for (int y = 1; y < sizeOfGrid; y += chunkDimension)
 		{
-			for (int x = 1; x < array_dimension; x += chunkDimension)
+			for (int x = 1; x < sizeOfGrid; x += chunkDimension)
 			{
 				chunkThreads.push_back(std::thread(updateChunk, x, y, std::ref(cellUpdateBarrier), chunkDimension));
 			}
@@ -614,8 +670,7 @@ int main()
 	}
 	else
 	{
-		typedef std::chrono::steady_clock the_clock;
-		the_clock::time_point startTime = the_clock::now();
+		startTime = the_clock::now();
 		if (numOfThreads == 1)
 		{
 			chunkThreads.push_back(std::thread(updateChunk_NoDisplay, 1, 1, std::ref(cellUpdateBarrier), chunkDimension, steps));
@@ -623,18 +678,16 @@ int main()
 		else
 		{
 
-			for (int y = 1; y < array_dimension; y += chunkDimension)
+			for (int y = 1; y < sizeOfGrid; y += chunkDimension)
 			{
-				for (int x = 1; x < array_dimension; x += chunkDimension)
+				for (int x = 1; x < sizeOfGrid; x += chunkDimension)
 				{
 					chunkThreads.push_back(std::thread(updateChunk_NoDisplay, x, y, std::ref(cellUpdateBarrier), chunkDimension, steps));
 				}
 			}
 
 		}
-		the_clock::time_point endTime = the_clock::now();
-		auto timeTaken = duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
-		std::cout << timeTaken << " nanoseconds elapsed" << std::endl;
+		
 	}
 
 
@@ -642,9 +695,13 @@ int main()
 	{
 		chunkThreads[i].join();
 	}
-
-
-
+	the_clock::time_point endTime = the_clock::now();
+	if (input == "n" || input == "N")
+	{
+	
+	auto timeTaken = duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+	std::cout << timeTaken << " milliseconds elapsed" << std::endl;
+	}
 	return 0;
 }
 
